@@ -158,3 +158,5 @@ obj-$(CONFIG_FMC)		+= fmc/
 obj-$(CONFIG_POWERCAP)		+= powercap/
 
 obj-$(CONFIG_GATOR)		+= gator/
+
+obj-$(CONFIG_XENOMAI) += xenomai/

@@ -275,6 +275,7 @@ static int create_image(int platform_mode)
 		goto Enable_cpus;
 
 	local_irq_disable();
+	hard_cond_local_irq_disable();
 
 	error = syscore_suspend();
 	if (error) {
@@ -428,6 +429,7 @@ static int resume_target_kernel(bool platform_mode)
 		goto Enable_cpus;
 
 	local_irq_disable();
+	hard_cond_local_irq_disable();
 
 	error = syscore_suspend();
 	if (error)
@@ -492,8 +494,14 @@ int hibernation_restore(int platform_mode)
 	error = dpm_suspend_start(PMSG_QUIESCE);
 	if (!error) {
 		error = resume_target_kernel(platform_mode);
-		dpm_resume_end(PMSG_RECOVER);
+		/*
+		 * The above should either succeed and jump to the new kernel,
+		 * or return with an error. Otherwise things are just
+		 * undefined, so let's be paranoid.
+		 */
+		BUG_ON(!error);
 	}
+	dpm_resume_end(PMSG_RECOVER);
 	pm_restore_gfp_mask();
 	ftrace_start();
 	resume_console();
@@ -543,6 +551,7 @@ int hibernation_platform_enter(void)
 		goto Platform_finish;
 
 	local_irq_disable();
+	hard_cond_local_irq_disable();
 	syscore_suspend();
 	if (pm_wakeup_pending()) {
 		error = -EAGAIN;

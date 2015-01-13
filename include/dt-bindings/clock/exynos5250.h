@@ -21,6 +21,7 @@
 #define CLK_FOUT_CPLL		6
 #define CLK_FOUT_EPLL		7
 #define CLK_FOUT_VPLL		8
+#define CLK_ARM_CLK             12
 
 /* gate for special clocks (sclk) */
 #define CLK_SCLK_CAM_BAYER	128
@@ -150,6 +151,7 @@
 #define CLK_G2D			345
 #define CLK_MDMA0		346
 #define CLK_SMMU_MDMA0		347
+#define CLK_SSS                 348
 
 /* mux clocks */
 #define CLK_MOUT_HDMI		1024

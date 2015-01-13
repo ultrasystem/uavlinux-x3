@@ -24,6 +24,7 @@ struct sched_param {
 #include <linux/nodemask.h>
 #include <linux/mm_types.h>
 #include <linux/preempt_mask.h>
+#include <linux/ipipe.h>
 
 #include <asm/page.h>
 #include <asm/ptrace.h>
@@ -58,6 +59,10 @@ struct sched_param {
 #include <asm/processor.h>
 
 #define SCHED_ATTR_SIZE_VER0	48	/* sizeof first published struct */
+
+#define VMACACHE_BITS 2
+#define VMACACHE_SIZE (1U << VMACACHE_BITS)
+#define VMACACHE_MASK (VMACACHE_SIZE - 1)
 
 /*
  * Extended scheduling parameters data structure.
@@ -211,9 +216,17 @@ print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq);
 #define TASK_WAKEKILL		128
 #define TASK_WAKING		256
 #define TASK_PARKED		512
+#ifdef CONFIG_IPIPE
+#define TASK_HARDENING		1024
+#define TASK_NOWAKEUP		2048
+#define TASK_STATE_MAX		4096
+#define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWPHN"
+#else  /* !CONFIG_IPIPE */
+#define TASK_HARDENING		0
+#define TASK_NOWAKEUP		0
 #define TASK_STATE_MAX		1024
-
 #define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWP"
+#endif /* CONFIG_IPIPE */
 
 extern char ___assert_task_state[1 - 2*!!(
 		sizeof(TASK_STATE_TO_CHAR_STR)-1 != ilog2(TASK_STATE_MAX)+1)];
@@ -324,6 +337,15 @@ extern void cpu_init (void);
 extern void trap_init(void);
 extern void update_process_times(int user);
 extern void scheduler_tick(void);
+
+#ifdef CONFIG_IPIPE
+void update_root_process_times(struct pt_regs *regs);
+#else  /* !CONFIG_IPIPE */
+static inline void update_root_process_times(struct pt_regs *regs)
+{
+	update_process_times(user_mode(regs));
+}
+#endif /* CONFIG_IPIPE */
 
 extern void sched_show_task(struct task_struct *p);
 
@@ -445,6 +467,9 @@ static inline int get_dumpable(struct mm_struct *mm)
 #define MMF_VM_MERGEABLE	16	/* KSM may merge identical pages */
 #define MMF_VM_HUGEPAGE		17	/* set when VM_HUGEPAGE is set on vma */
 #define MMF_EXE_FILE_CHANGED	18	/* see prctl_set_mm_exe_file() */
+#ifdef CONFIG_IPIPE
+#define MMF_VM_PINNED		31	/* ondemand load up and COW disabled */
+#endif
 
 #define MMF_HAS_UPROBES		19	/* has uprobes */
 #define MMF_RECALC_UPROBES	20	/* MMF_HAS_UPROBES can be wrong */
@@ -1228,6 +1253,9 @@ struct task_struct {
 #ifdef CONFIG_COMPAT_BRK
 	unsigned brk_randomized:1;
 #endif
+	/* per-thread vma caching */
+	u32 vmacache_seqnum;
+	struct vm_area_struct *vmacache[VMACACHE_SIZE];
 #if defined(SPLIT_RSS_COUNTING)
 	struct task_rss_stat	rss_stat;
 #endif
@@ -1505,6 +1533,9 @@ struct task_struct {
 #endif /* CONFIG_NUMA_BALANCING */
 
 	struct rcu_head rcu;
+#ifdef CONFIG_IPIPE_LEGACY
+	void *ptd[IPIPE_ROOT_NPTDKEYS];
+#endif
 
 	/*
 	 * cache last used pipe for splice
@@ -1688,6 +1719,24 @@ static inline pid_t task_tgid_vnr(struct task_struct *tsk)
 }
 
 
+static inline int pid_alive(const struct task_struct *p);
+static inline pid_t task_ppid_nr_ns(const struct task_struct *tsk, struct pid_namespace *ns)
+{
+	pid_t pid = 0;
+
+	rcu_read_lock();
+	if (pid_alive(tsk))
+		pid = task_tgid_nr_ns(rcu_dereference(tsk->real_parent), ns);
+	rcu_read_unlock();
+
+	return pid;
+}
+
+static inline pid_t task_ppid_nr(const struct task_struct *tsk)
+{
+	return task_ppid_nr_ns(tsk, &init_pid_ns);
+}
+
 static inline pid_t task_pgrp_nr_ns(struct task_struct *tsk,
 					struct pid_namespace *ns)
 {
@@ -1727,7 +1776,7 @@ static inline pid_t task_pgrp_nr(struct task_struct *tsk)
  *
  * Return: 1 if the process is alive. 0 otherwise.
  */
-static inline int pid_alive(struct task_struct *p)
+static inline int pid_alive(const struct task_struct *p)
 {
 	return p->pids[PIDTYPE_PID].pid != NULL;
 }
@@ -1854,11 +1903,13 @@ extern int task_free_unregister(struct notifier_block *n);
 #define tsk_used_math(p) ((p)->flags & PF_USED_MATH)
 #define used_math() tsk_used_math(current)
 
-/* __GFP_IO isn't allowed if PF_MEMALLOC_NOIO is set in current->flags */
+/* __GFP_IO isn't allowed if PF_MEMALLOC_NOIO is set in current->flags
+ * __GFP_FS is also cleared as it implies __GFP_IO.
+ */
 static inline gfp_t memalloc_noio_flags(gfp_t flags)
 {
 	if (unlikely(current->flags & PF_MEMALLOC_NOIO))
-		flags &= ~__GFP_IO;
+		flags &= ~(__GFP_IO | __GFP_FS);
 	return flags;
 }
 

@@ -16,6 +16,7 @@ config ARCH_EXYNOS4
 	default y
 	select ARM_AMBA
 	select CLKSRC_OF
+	select IPIPE_ARM_KUSER_TSC if IPIPE
 	select CLKSRC_SAMSUNG_PWM if CPU_EXYNOS4210
 	select CPU_EXYNOS4210
 	select GIC_NON_BANKED

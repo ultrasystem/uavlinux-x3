@@ -17,13 +17,13 @@ clean-files := capability_names.h rlim_names.h
 #    [1] = "dac_override",
 quiet_cmd_make-caps = GEN     $@
 cmd_make-caps = echo "static const char *const capability_names[] = {" > $@ ;\
-	sed $< >>$@ -r -n -e '/CAP_FS_MASK/d' \
+	gsed $< >>$@ -r -n -e '/CAP_FS_MASK/d' \
 	-e 's/^\#define[ \t]+CAP_([A-Z0-9_]+)[ \t]+([0-9]+)/[\2] = "\L\1",/p';\
 	echo "};" >> $@ ;\
 	echo -n '\#define AA_FS_CAPS_MASK "' >> $@ ;\
-	sed $< -r -n -e '/CAP_FS_MASK/d' \
+	gsed $< -r -n -e '/CAP_FS_MASK/d' \
 	    -e 's/^\#define[ \t]+CAP_([A-Z0-9_]+)[ \t]+([0-9]+)/\L\1/p' | \
-	     tr '\n' ' ' | sed -e 's/ $$/"\n/' >> $@
+	     tr '\n' ' ' | gsed -e 's/ $$/"\n/' >> $@
 
 
 # Build a lower case string table of rlimit names.
@@ -32,7 +32,7 @@ cmd_make-caps = echo "static const char *const capability_names[] = {" > $@ ;\
 # to
 #    [RLIMIT_STACK] = "stack",
 #
-# and build a second integer table (with the second sed cmd), that maps
+# and build a second integer table (with the second gsed cmd), that maps
 # RLIMIT defines to the order defined in asm-generic/resource.h  This is
 # required by policy load to map policy ordering of RLIMITs to internal
 # ordering for architectures that redefine an RLIMIT.
@@ -50,15 +50,15 @@ cmd_make-caps = echo "static const char *const capability_names[] = {" > $@ ;\
 quiet_cmd_make-rlim = GEN     $@
 cmd_make-rlim = echo "static const char *const rlim_names[RLIM_NLIMITS] = {" \
 	> $@ ;\
-	sed $< >> $@ -r -n \
+	gsed $< >> $@ -r -n \
 	    -e 's/^\# ?define[ \t]+(RLIMIT_([A-Z0-9_]+)).*/[\1] = "\L\2",/p';\
 	echo "};" >> $@ ;\
 	echo "static const int rlim_map[RLIM_NLIMITS] = {" >> $@ ;\
-	sed -r -n "s/^\# ?define[ \t]+(RLIMIT_[A-Z0-9_]+).*/\1,/p" $< >> $@ ;\
+	gsed -r -n "s/^\# ?define[ \t]+(RLIMIT_[A-Z0-9_]+).*/\1,/p" $< >> $@ ;\
 	echo "};" >> $@ ; \
 	echo -n '\#define AA_FS_RLIMIT_MASK "' >> $@ ;\
-	sed -r -n 's/^\# ?define[ \t]+RLIMIT_([A-Z0-9_]+).*/\L\1/p' $< | \
-	    tr '\n' ' ' | sed -e 's/ $$/"\n/' >> $@
+	gsed -r -n 's/^\# ?define[ \t]+RLIMIT_([A-Z0-9_]+).*/\L\1/p' $< | \
+	    tr '\n' ' ' | gsed -e 's/ $$/"\n/' >> $@
 
 $(obj)/capability.o : $(obj)/capability_names.h
 $(obj)/resource.o : $(obj)/rlim_names.h

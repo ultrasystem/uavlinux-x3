@@ -27,6 +27,8 @@ struct irq_desc;
  * @irq_count:		stats field to detect stalled irqs
  * @last_unhandled:	aging timer for unhandled count
  * @irqs_unhandled:	stats field for spurious unhandled interrupts
+ * @threads_handled:	stats field for deferred spurious detection of threaded handlers
+ * @threads_handled_last: comparator field for deferred spurious detection of theraded handlers
  * @lock:		locking for SMP
  * @affinity_hint:	hint to user space for preferred irq affinity
  * @affinity_notify:	context for notification of affinity changes
@@ -40,6 +42,12 @@ struct irq_desc;
 struct irq_desc {
 	struct irq_data		irq_data;
 	unsigned int __percpu	*kstat_irqs;
+#ifdef CONFIG_IPIPE
+	void			(*ipipe_ack)(unsigned int irq,
+					     struct irq_desc *desc);
+	void			(*ipipe_end)(unsigned int irq,
+					     struct irq_desc *desc);
+#endif /* CONFIG_IPIPE */
 	irq_flow_handler_t	handle_irq;
 #ifdef CONFIG_IRQ_PREFLOW_FASTEOI
 	irq_preflow_handler_t	preflow_handler;
@@ -52,6 +60,8 @@ struct irq_desc {
 	unsigned int		irq_count;	/* For detecting broken IRQs */
 	unsigned long		last_unhandled;	/* Aging timer for unhandled count */
 	unsigned int		irqs_unhandled;
+	atomic_t		threads_handled;
+	int			threads_handled_last;
 	raw_spinlock_t		lock;
 	struct cpumask		*percpu_enabled;
 #ifdef CONFIG_SMP
@@ -121,6 +131,10 @@ static inline int irq_has_action(unsigned int irq)
 	return desc->action != NULL;
 }
 
+irq_flow_handler_t
+__fixup_irq_handler(struct irq_desc *desc, irq_flow_handler_t handle,
+		    int is_chained);
+
 /* caller has locked the irq_desc and both params are valid */
 static inline void __irq_set_handler_locked(unsigned int irq,
 					    irq_flow_handler_t handler)
@@ -128,6 +142,7 @@ static inline void __irq_set_handler_locked(unsigned int irq,
 	struct irq_desc *desc;
 
 	desc = irq_to_desc(irq);
+	handler = __fixup_irq_handler(desc, handler, 0);
 	desc->handle_irq = handler;
 }
 

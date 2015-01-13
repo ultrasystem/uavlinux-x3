@@ -1322,7 +1322,7 @@ out:
 		 * leave kernel.
 		 */
 		if (p->mm && printk_ratelimit()) {
-			printk_sched("process %d (%s) no longer affine to cpu%d\n",
+			printk_deferred("process %d (%s) no longer affine to cpu%d\n",
 					task_pid_nr(p), p->comm, cpu);
 		}
 	}
@@ -1520,7 +1520,9 @@ void scheduler_ipi(void)
 	 * however a fair share of IPIs are still resched only so this would
 	 * somewhat pessimize the simple resched case.
 	 */
+#ifndef IPIPE_ARCH_HAVE_VIRQ_IPI
 	irq_enter();
+#endif
 	tick_nohz_full_check();
 	sched_ttwu_pending();
 
@@ -1531,7 +1533,9 @@ void scheduler_ipi(void)
 		this_rq()->idle_balance = 1;
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 	}
+#ifndef IPIPE_ARCH_HAVE_VIRQ_IPI
 	irq_exit();
+#endif
 }
 
 static void ttwu_queue_remote(struct task_struct *p, int cpu)
@@ -1592,7 +1596,8 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	 */
 	smp_mb__before_spinlock();
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
-	if (!(p->state & state))
+	if (!(p->state & state) ||
+	    (p->state & (TASK_NOWAKEUP|TASK_HARDENING)))
 		goto out;
 
 	success = 1; /* we're going to change ->state */
@@ -1895,6 +1900,8 @@ unsigned long to_ratio(u64 period, u64 runtime)
 #ifdef CONFIG_SMP
 inline struct dl_bw *dl_bw_of(int i)
 {
+	rcu_lockdep_assert(rcu_read_lock_sched_held(),
+			   "sched RCU must be held");
 	return &cpu_rq(i)->rd->dl_bw;
 }
 
@@ -1903,6 +1910,8 @@ static inline int dl_bw_cpus(int i)
 	struct root_domain *rd = cpu_rq(i)->rd;
 	int cpus = 0;
 
+	rcu_lockdep_assert(rcu_read_lock_sched_held(),
+			   "sched RCU must be held");
 	for_each_cpu_and(i, rd->span, cpu_active_mask)
 		cpus++;
 
@@ -2210,6 +2219,8 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 {
 	struct rq *rq = this_rq();
 
+	__ipipe_complete_domain_migration();
+
 	finish_task_switch(rq, prev);
 
 	/*
@@ -2230,7 +2241,7 @@ asmlinkage void schedule_tail(struct task_struct *prev)
  * context_switch - switch to the new MM and the new
  * thread's register state.
  */
-static inline void
+static inline int
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
@@ -2273,12 +2284,18 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	switch_to(prev, next, prev);
 
 	barrier();
+
+	if (unlikely(__ipipe_switch_tail()))
+		return 1;
+
 	/*
 	 * this_rq must be evaluated again because prev may have moved
 	 * CPUs since it called schedule(), thus the 'rq' on its stack
 	 * frame will be invalid.
 	 */
 	finish_task_switch(this_rq(), prev);
+
+	return 0;
 }
 
 /*
@@ -2495,6 +2512,7 @@ notrace unsigned long get_parent_ip(unsigned long addr)
 
 void __kprobes preempt_count_add(int val)
 {
+	ipipe_preempt_root_only();
 #ifdef CONFIG_DEBUG_PREEMPT
 	/*
 	 * Underflow?
@@ -2517,6 +2535,7 @@ EXPORT_SYMBOL(preempt_count_add);
 
 void __kprobes preempt_count_sub(int val)
 {
+	ipipe_preempt_root_only();
 #ifdef CONFIG_DEBUG_PREEMPT
 	/*
 	 * Underflow?
@@ -2563,6 +2582,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
  */
 static inline void schedule_debug(struct task_struct *prev)
 {
+	ipipe_root_only();
 	/*
 	 * Test if we are atomic. Since do_exit() needs to call into
 	 * schedule() atomically, we ignore that path. Otherwise whine
@@ -2649,7 +2669,7 @@ pick_next_task(struct rq *rq)
  *          - return from syscall or exception to user-space
  *          - return from interrupt-handler to user-space
  */
-static void __sched __schedule(void)
+static int __sched __schedule(void)
 {
 	struct task_struct *prev, *next;
 	unsigned long *switch_count;
@@ -2662,6 +2682,10 @@ need_resched:
 	rq = cpu_rq(cpu);
 	rcu_note_context_switch(cpu);
 	prev = rq->curr;
+
+ 	if (unlikely(prev->state & TASK_HARDENING))
+		/* Pop one disable level -- one still remains. */
+		preempt_enable();
 
 	schedule_debug(prev);
 
@@ -2716,7 +2740,8 @@ need_resched:
 		rq->curr = next;
 		++*switch_count;
 
-		context_switch(rq, prev, next); /* unlocks the rq */
+ 		if (context_switch(rq, prev, next)) /* unlocks the rq */
+  			return 1; /* task hijacked by head domain */
 		/*
 		 * The context switch have flipped the stack from under us
 		 * and restored the local variables which were saved when
@@ -2725,14 +2750,18 @@ need_resched:
 		 */
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
-	} else
+	} else {
+  		prev->state &= ~TASK_HARDENING;
 		raw_spin_unlock_irq(&rq->lock);
+	}
 
 	post_schedule(rq);
 
 	sched_preempt_enable_no_resched();
 	if (need_resched())
 		goto need_resched;
+
+	return 0;
 }
 
 static inline void sched_submit_work(struct task_struct *tsk)
@@ -2795,12 +2824,13 @@ asmlinkage void __sched notrace preempt_schedule(void)
 	 * If there is a non-zero preempt_count or interrupts are disabled,
 	 * we do not want to preempt the current task. Just return..
 	 */
-	if (likely(!preemptible()))
+	if (likely(!preemptible() || !ipipe_root_p))
 		return;
 
 	do {
 		__preempt_count_add(PREEMPT_ACTIVE);
-		__schedule();
+		if (__schedule())
+			return;
 		__preempt_count_sub(PREEMPT_ACTIVE);
 
 		/*
@@ -3242,17 +3272,40 @@ __getparam_dl(struct task_struct *p, struct sched_attr *attr)
  * We ask for the deadline not being zero, and greater or equal
  * than the runtime, as well as the period of being zero or
  * greater than deadline. Furthermore, we have to be sure that
- * user parameters are above the internal resolution (1us); we
- * check sched_runtime only since it is always the smaller one.
+ * user parameters are above the internal resolution of 1us (we
+ * check sched_runtime only since it is always the smaller one) and
+ * below 2^63 ns (we have to check both sched_deadline and
+ * sched_period, as the latter can be zero).
  */
 static bool
 __checkparam_dl(const struct sched_attr *attr)
 {
-	return attr && attr->sched_deadline != 0 &&
-		(attr->sched_period == 0 ||
-		(s64)(attr->sched_period   - attr->sched_deadline) >= 0) &&
-		(s64)(attr->sched_deadline - attr->sched_runtime ) >= 0  &&
-		attr->sched_runtime >= (2 << (DL_SCALE - 1));
+	/* deadline != 0 */
+	if (attr->sched_deadline == 0)
+		return false;
+
+	/*
+	 * Since we truncate DL_SCALE bits, make sure we're at least
+	 * that big.
+	 */
+	if (attr->sched_runtime < (1ULL << DL_SCALE))
+		return false;
+
+	/*
+	 * Since we use the MSB for wrap-around and sign issues, make
+	 * sure it's not set (mind that period can be equal to zero).
+	 */
+	if (attr->sched_deadline & (1ULL << 63) ||
+	    attr->sched_period & (1ULL << 63))
+		return false;
+
+	/* runtime <= deadline <= period (if period != 0) */
+	if ((attr->sched_period != 0 &&
+	     attr->sched_period < attr->sched_deadline) ||
+	    attr->sched_deadline < attr->sched_runtime)
+		return false;
+
+	return true;
 }
 
 /*
@@ -3464,6 +3517,7 @@ change:
 	oldprio = p->prio;
 	prev_class = p->sched_class;
 	__setscheduler(rq, p, attr);
+  	__ipipe_report_setsched(p);
 
 	if (running)
 		p->sched_class->set_curr_task(rq);
@@ -3488,9 +3542,10 @@ static int _sched_setscheduler(struct task_struct *p, int policy,
 	};
 
 	/*
-	 * Fixup the legacy SCHED_RESET_ON_FORK hack
+	 * Fixup the legacy SCHED_RESET_ON_FORK hack, except if
+	 * the policy=-1 was passed by sched_setparam().
 	 */
-	if (policy & SCHED_RESET_ON_FORK) {
+	if ((policy != -1) && (policy & SCHED_RESET_ON_FORK)) {
 		attr.sched_flags |= SCHED_FLAG_RESET_ON_FORK;
 		policy &= ~SCHED_RESET_ON_FORK;
 		attr.sched_policy = policy;
@@ -3680,8 +3735,12 @@ SYSCALL_DEFINE3(sched_setattr, pid_t, pid, struct sched_attr __user *, uattr,
 	if (!uattr || pid < 0 || flags)
 		return -EINVAL;
 
-	if (sched_copy_attr(uattr, &attr))
-		return -EFAULT;
+	retval = sched_copy_attr(uattr, &attr);
+	if (retval)
+		return retval;
+
+	if ((int)attr.sched_policy < 0)
+		return -EINVAL;
 
 	rcu_read_lock();
 	retval = -ESRCH;
@@ -3731,7 +3790,7 @@ SYSCALL_DEFINE1(sched_getscheduler, pid_t, pid)
  */
 SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *, param)
 {
-	struct sched_param lp;
+	struct sched_param lp = { .sched_priority = 0 };
 	struct task_struct *p;
 	int retval;
 
@@ -3748,11 +3807,8 @@ SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *, param)
 	if (retval)
 		goto out_unlock;
 
-	if (task_has_dl_policy(p)) {
-		retval = -EINVAL;
-		goto out_unlock;
-	}
-	lp.sched_priority = p->rt_priority;
+	if (task_has_rt_policy(p))
+		lp.sched_priority = p->rt_priority;
 	rcu_read_unlock();
 
 	/*
@@ -3912,13 +3968,14 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	 * root_domain.
 	 */
 #ifdef CONFIG_SMP
-	if (task_has_dl_policy(p)) {
-		const struct cpumask *span = task_rq(p)->rd->span;
-
-		if (dl_bandwidth_enabled() && !cpumask_subset(span, new_mask)) {
+	if (task_has_dl_policy(p) && dl_bandwidth_enabled()) {
+		rcu_read_lock();
+		if (!cpumask_subset(task_rq(p)->rd->span, new_mask)) {
 			retval = -EBUSY;
+			rcu_read_unlock();
 			goto out_unlock;
 		}
+		rcu_read_unlock();
 	}
 #endif
 again:
@@ -4555,10 +4612,13 @@ int set_cpus_allowed_ptr(struct task_struct *p, const struct cpumask *new_mask)
 	do_set_cpus_allowed(p, new_mask);
 
 	/* Can the task run on the task's current CPU? If so, we're done */
-	if (cpumask_test_cpu(task_cpu(p), new_mask))
+	if (cpumask_test_cpu(task_cpu(p), new_mask)) {
+		__ipipe_report_setaffinity(p, task_cpu(p));
 		goto out;
+	}
 
 	dest_cpu = cpumask_any_and(cpu_active_mask, new_mask);
+	__ipipe_report_setaffinity(p, dest_cpu);
 	if (p->on_rq) {
 		struct migration_arg arg = { p, dest_cpu };
 		/* Need help from migration thread: drop lock and wait. */
@@ -5051,7 +5111,6 @@ static int sched_cpu_active(struct notifier_block *nfb,
 				      unsigned long action, void *hcpu)
 {
 	switch (action & ~CPU_TASKS_FROZEN) {
-	case CPU_STARTING:
 	case CPU_DOWN_FAILED:
 		set_cpu_active((long)hcpu, true);
 		return NOTIFY_OK;
@@ -7445,6 +7504,8 @@ static int sched_dl_global_constraints(void)
 	int cpu, ret = 0;
 	unsigned long flags;
 
+	rcu_read_lock();
+
 	/*
 	 * Here we want to check the bandwidth not being set to some
 	 * value smaller than the currently allocated bandwidth in
@@ -7466,6 +7527,8 @@ static int sched_dl_global_constraints(void)
 			break;
 	}
 
+	rcu_read_unlock();
+
 	return ret;
 }
 
@@ -7481,6 +7544,7 @@ static void sched_dl_do_global(void)
 	if (global_rt_runtime() != RUNTIME_INF)
 		new_bw = to_ratio(global_rt_period(), global_rt_runtime());
 
+	rcu_read_lock();
 	/*
 	 * FIXME: As above...
 	 */
@@ -7491,6 +7555,7 @@ static void sched_dl_do_global(void)
 		dl_b->bw = new_bw;
 		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
 	}
+	rcu_read_unlock();
 }
 
 static int sched_rt_global_validate(void)
@@ -8021,3 +8086,42 @@ void dump_cpu_task(int cpu)
 	pr_info("Task dump for CPU %d:\n", cpu);
 	sched_show_task(cpu_curr(cpu));
 }
+
+#ifdef CONFIG_IPIPE
+
+int __ipipe_migrate_head(void)
+{
+	struct task_struct *p = current;
+
+	preempt_disable();
+
+	IPIPE_WARN_ONCE(__this_cpu_read(ipipe_percpu.task_hijacked) != NULL);
+
+	__this_cpu_write(ipipe_percpu.task_hijacked, p);
+	set_current_state(TASK_INTERRUPTIBLE | TASK_HARDENING);
+	sched_submit_work(p);
+	if (likely(__schedule()))
+		return 0;
+
+	if (signal_pending(p))
+		return -ERESTARTSYS;
+
+	BUG();
+}
+EXPORT_SYMBOL_GPL(__ipipe_migrate_head);
+
+void __ipipe_reenter_root(void)
+{
+	struct rq *rq = this_rq();
+	struct task_struct *p;
+
+	p = __this_cpu_read(ipipe_percpu.rqlock_owner);
+	BUG_ON(p == NULL);
+	ipipe_clear_thread_flag(TIP_HEAD);
+	finish_task_switch(rq, p);
+	post_schedule(rq);
+	sched_preempt_enable_no_resched();
+}
+EXPORT_SYMBOL_GPL(__ipipe_reenter_root);
+
+#endif /* CONFIG_IPIPE */

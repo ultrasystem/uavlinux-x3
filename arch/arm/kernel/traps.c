@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/ipipe.h>
 
 #include <linux/atomic.h>
 #include <asm/cacheflush.h>
@@ -471,6 +472,14 @@ asmlinkage void do_unexp_fiq (struct pt_regs *regs)
  */
 asmlinkage void bad_mode(struct pt_regs *regs, int reason)
 {
+	if (__ipipe_report_trap(IPIPE_TRAP_UNKNOWN,regs))
+		return;
+
+#ifdef CONFIG_IPIPE
+	ipipe_stall_root();
+	hard_local_irq_enable();
+#endif
+
 	console_verbose();
 
 	printk(KERN_CRIT "Bad mode in %s handler detected\n", handler[reason]);
@@ -478,6 +487,11 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason)
 	die("Oops - bad mode", regs, 0);
 	local_irq_disable();
 	panic("bad mode");
+
+#ifdef CONFIG_IPIPE
+	hard_local_irq_disable();
+	__ipipe_root_status &= ~IPIPE_STALL_FLAG;
+#endif
 }
 
 static int bad_syscall(int n, struct pt_regs *regs)
@@ -510,8 +524,6 @@ static int bad_syscall(int n, struct pt_regs *regs)
 	return regs->ARM_r0;
 }
 
-static long do_cache_op_restart(struct restart_block *);
-
 static inline int
 __do_cache_op(unsigned long start, unsigned long end)
 {
@@ -520,24 +532,8 @@ __do_cache_op(unsigned long start, unsigned long end)
 	do {
 		unsigned long chunk = min(PAGE_SIZE, end - start);
 
-		if (signal_pending(current)) {
-			struct thread_info *ti = current_thread_info();
-
-			ti->restart_block = (struct restart_block) {
-				.fn	= do_cache_op_restart,
-			};
-
-			ti->arm_restart_block = (struct arm_restart_block) {
-				{
-					.cache = {
-						.start	= start,
-						.end	= end,
-					},
-				},
-			};
-
-			return -ERESTART_RESTARTBLOCK;
-		}
+		if (fatal_signal_pending(current))
+			return 0;
 
 		ret = flush_cache_user_range(start, start + chunk);
 		if (ret)
@@ -548,15 +544,6 @@ __do_cache_op(unsigned long start, unsigned long end)
 	} while (start < end);
 
 	return 0;
-}
-
-static long do_cache_op_restart(struct restart_block *unused)
-{
-	struct arm_restart_block *restart_block;
-
-	restart_block = &current_thread_info()->arm_restart_block;
-	return __do_cache_op(restart_block->cache.start,
-			     restart_block->cache.end);
 }
 
 static inline int
@@ -578,7 +565,6 @@ do_cache_op(unsigned long start, unsigned long end, int flags)
 #define NR(x) ((__ARM_NR_##x) - __ARM_NR_BASE)
 asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 {
-	struct thread_info *thread = current_thread_info();
 	siginfo_t info;
 
 	if ((no >> 16) != (__ARM_NR_BASE>> 16))
@@ -629,21 +615,7 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 		return regs->ARM_r0;
 
 	case NR(set_tls):
-		thread->tp_value[0] = regs->ARM_r0;
-		if (tls_emu)
-			return 0;
-		if (has_tls_reg) {
-			asm ("mcr p15, 0, %0, c13, c0, 3"
-				: : "r" (regs->ARM_r0));
-		} else {
-			/*
-			 * User space must never try to access this directly.
-			 * Expect your app to break eventually if you do so.
-			 * The user helper at 0xffff0fe0 must be used instead.
-			 * (see entry-armv.S for details)
-			 */
-			*((unsigned int *)0xffff0ff0) = regs->ARM_r0;
-		}
+		set_tls(regs->ARM_r0);
 		return 0;
 
 #ifdef CONFIG_NEEDS_SYSCALL_FOR_CMPXCHG
@@ -851,10 +823,21 @@ void __init trap_init(void)
 #ifdef CONFIG_KUSER_HELPERS
 static void __init kuser_init(void *vectors)
 {
+#ifndef CONFIG_IPIPE
 	extern char __kuser_helper_start[], __kuser_helper_end[];
 	int kuser_sz = __kuser_helper_end - __kuser_helper_start;
+#else /* !CONFIG_IPIPE */
+	extern char __ipipe_tsc_area_start[], __kuser_helper_end[];
+	int kuser_sz = __kuser_helper_end - __ipipe_tsc_area_start;
+	extern char __vectors_start[], __vectors_end[];
+#endif /* !CONFIG_IPIPE */
 
+#ifndef CONFIG_IPIPE
 	memcpy(vectors + 0x1000 - kuser_sz, __kuser_helper_start, kuser_sz);
+#else /* !CONFIG_IPIPE */
+	BUG_ON(0x1000 - kuser_sz < __vectors_end - __vectors_start);
+	memcpy(vectors + 0x1000 - kuser_sz, __ipipe_tsc_area_start, kuser_sz);
+#endif /* !CONFIG_IPIPE */
 
 	/*
 	 * vectors + 0xfe0 = __kuser_get_tls

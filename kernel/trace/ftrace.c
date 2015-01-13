@@ -32,6 +32,7 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 #include <linux/rcupdate.h>
+#include <linux/ipipe.h>
 
 #include <trace/events/sched.h>
 
@@ -305,9 +306,18 @@ static inline void update_function_graph_func(void) { }
 
 static void update_ftrace_function(void)
 {
+	struct ftrace_ops *ops;
 	ftrace_func_t func;
 
 	update_global_ops();
+
+	for (ops = ftrace_ops_list;
+	     ops != &ftrace_list_end; ops = ops->next)
+		if (ops->flags & FTRACE_OPS_FL_IPIPE_EXCLUSIVE) {
+			function_trace_op = ops;
+			ftrace_trace_function = ops->func;
+			return;
+		}
 
 	/*
 	 * If we are at the end of the list and this ops is
@@ -331,11 +341,11 @@ static void update_ftrace_function(void)
 		func = ftrace_ops_list_func;
 	}
 
+	update_function_graph_func();
+
 	/* If there's no change, then do nothing more here */
 	if (ftrace_trace_function == func)
 		return;
-
-	update_function_graph_func();
 
 	/*
 	 * If we are using the list function, it doesn't care
@@ -2063,6 +2073,9 @@ void __weak arch_ftrace_update_code(int command)
 
 static void ftrace_run_update_code(int command)
 {
+#ifdef CONFIG_IPIPE
+	unsigned long flags;
+#endif /* CONFIG_IPIPE */
 	int ret;
 
 	ret = ftrace_arch_code_modify_prepare();
@@ -2081,7 +2094,13 @@ static void ftrace_run_update_code(int command)
 	 * is safe. The stop_machine() is the safest, but also
 	 * produces the most overhead.
 	 */
+#ifdef CONFIG_IPIPE
+	flags = ipipe_critical_enter(NULL);
+	__ftrace_modify_code(&command);
+	ipipe_critical_exit(flags);
+#else  /* !CONFIG_IPIPE */
 	arch_ftrace_update_code(command);
+#endif /* !CONFIG_IPIPE */
 
 	function_trace_stop--;
 
@@ -4250,10 +4269,10 @@ static int ftrace_process_locs(struct module *mod,
 	 * reason to cause large interrupt latencies while we do it.
 	 */
 	if (!mod)
-		local_irq_save(flags);
+		flags = hard_local_irq_save();
 	ftrace_update_code(mod);
 	if (!mod)
-		local_irq_restore(flags);
+		hard_local_irq_restore(flags);
 	ret = 0;
  out:
 	mutex_unlock(&ftrace_lock);
@@ -4315,16 +4334,11 @@ static void ftrace_init_module(struct module *mod,
 	ftrace_process_locs(mod, start, end);
 }
 
-static int ftrace_module_notify_enter(struct notifier_block *self,
-				      unsigned long val, void *data)
+void ftrace_module_init(struct module *mod)
 {
-	struct module *mod = data;
-
-	if (val == MODULE_STATE_COMING)
-		ftrace_init_module(mod, mod->ftrace_callsites,
-				   mod->ftrace_callsites +
-				   mod->num_ftrace_callsites);
-	return 0;
+	ftrace_init_module(mod, mod->ftrace_callsites,
+			   mod->ftrace_callsites +
+			   mod->num_ftrace_callsites);
 }
 
 static int ftrace_module_notify_exit(struct notifier_block *self,
@@ -4338,22 +4352,12 @@ static int ftrace_module_notify_exit(struct notifier_block *self,
 	return 0;
 }
 #else
-static int ftrace_module_notify_enter(struct notifier_block *self,
-				      unsigned long val, void *data)
-{
-	return 0;
-}
 static int ftrace_module_notify_exit(struct notifier_block *self,
 				     unsigned long val, void *data)
 {
 	return 0;
 }
 #endif /* CONFIG_MODULES */
-
-struct notifier_block ftrace_module_enter_nb = {
-	.notifier_call = ftrace_module_notify_enter,
-	.priority = INT_MAX,	/* Run before anything that can use kprobes */
-};
 
 struct notifier_block ftrace_module_exit_nb = {
 	.notifier_call = ftrace_module_notify_exit,
@@ -4371,9 +4375,9 @@ void __init ftrace_init(void)
 	/* Keep the ftrace pointer to the stub */
 	addr = (unsigned long)ftrace_stub;
 
-	local_irq_save(flags);
+	flags = hard_local_irq_save_notrace();
 	ftrace_dyn_arch_init(&addr);
-	local_irq_restore(flags);
+	hard_local_irq_restore_notrace(flags);
 
 	/* ftrace_dyn_arch_init places the return code in addr */
 	if (addr)
@@ -4390,10 +4394,6 @@ void __init ftrace_init(void)
 	ret = ftrace_process_locs(NULL,
 				  __start_mcount_loc,
 				  __stop_mcount_loc);
-
-	ret = register_module_notifier(&ftrace_module_enter_nb);
-	if (ret)
-		pr_warning("Failed to register trace ftrace module enter notifier\n");
 
 	ret = register_module_notifier(&ftrace_module_exit_nb);
 	if (ret)

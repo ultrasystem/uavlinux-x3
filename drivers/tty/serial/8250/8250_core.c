@@ -555,7 +555,7 @@ static void serial8250_set_sleep(struct uart_8250_port *p, int sleep)
 	 */
 	if ((p->port.type == PORT_XR17V35X) ||
 	   (p->port.type == PORT_XR17D15X)) {
-		serial_out(p, UART_EXAR_SLEEP, 0xff);
+		serial_out(p, UART_EXAR_SLEEP, sleep ? 0xff : 0);
 		return;
 	}
 
@@ -1520,7 +1520,7 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 			status = serial8250_rx_chars(up, status);
 	}
 	serial8250_modem_status(up);
-	if (status & UART_LSR_THRE)
+	if (!up->dma && (status & UART_LSR_THRE))
 		serial8250_tx_chars(up);
 
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -2356,7 +2356,7 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 	port->read_status_mask = UART_LSR_OE | UART_LSR_THRE | UART_LSR_DR;
 	if (termios->c_iflag & INPCK)
 		port->read_status_mask |= UART_LSR_FE | UART_LSR_PE;
-	if (termios->c_iflag & (BRKINT | PARMRK))
+	if (termios->c_iflag & (IGNBRK | BRKINT | PARMRK))
 		port->read_status_mask |= UART_LSR_BI;
 
 	/*
@@ -3168,6 +3168,84 @@ static int serial8250_resume(struct platform_device *dev)
 
 	return 0;
 }
+
+#if defined(CONFIG_IPIPE_DEBUG) && defined(CONFIG_SERIAL_8250_CONSOLE)
+
+static IPIPE_DEFINE_SPINLOCK(ipipe_8250_lock);
+
+#include <stdarg.h>
+
+static void wait_for_xmitr_nodelay(struct uart_8250_port *up, int bits)
+{
+	unsigned int status, tmout = 10000;
+
+	for (;;) {
+		status = serial_in(up, UART_LSR);
+
+		up->lsr_saved_flags |= status & LSR_SAVE_FLAGS;
+
+		if ((status & bits) == bits)
+			break;
+		if (--tmout == 0)
+			break;
+		cpu_relax();
+	}
+}
+
+static void serial8250_console_putchar_nodelay(struct uart_port *port, int ch)
+{
+	struct uart_8250_port *up =
+		container_of(port, struct uart_8250_port, port);
+
+	wait_for_xmitr_nodelay(up, UART_LSR_THRE);
+	serial_port_out(port, UART_TX, ch);
+}
+
+void __weak __ipipe_serial_debug(const char *fmt, ...)
+{
+        struct uart_8250_port *up = &serial8250_ports[0];
+        unsigned int ier, count;
+        unsigned long flags;
+        char buf[128];
+        va_list ap;
+
+	if (up->port.membase == NULL
+	    && up->port.iobase == 0
+	    && up->port.mapbase == 0)
+		return;
+
+        va_start(ap, fmt);
+        vsprintf(buf, fmt, ap);
+        va_end(ap);
+        count = strlen(buf);
+
+        touch_nmi_watchdog();
+
+        spin_lock_irqsave(&ipipe_8250_lock, flags);
+
+        /*
+         *      First save the IER then disable the interrupts
+        */
+        ier = serial_in(up, UART_IER);
+
+        if (up->capabilities & UART_CAP_UUE)
+                serial_out(up, UART_IER, UART_IER_UUE);
+        else
+                serial_out(up, UART_IER, 0);
+
+        uart_console_write(&up->port, buf, count, serial8250_console_putchar_nodelay);
+
+        /*
+         *      Finally, wait for transmitter to become empty
+         *      and restore the IER
+         */
+        wait_for_xmitr_nodelay(up, BOTH_EMPTY);
+        serial_out(up, UART_IER, ier);
+
+        spin_unlock_irqrestore(&ipipe_8250_lock, flags);
+}
+
+#endif
 
 static struct platform_driver serial8250_isa_driver = {
 	.probe		= serial8250_probe,

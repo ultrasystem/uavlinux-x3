@@ -34,6 +34,7 @@
 #include <linux/uaccess.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/ipipe.h>
 
 
 #include "omap_hwmod.h"
@@ -183,8 +184,10 @@ static int __init _omap_mux_get_by_name(struct omap_mux_partition *partition,
 		m0_entry = mux->muxnames[0];
 
 		/* First check for full name in mode0.muxmode format */
-		if (mode0_len && strncmp(muxname, m0_entry, mode0_len))
-			continue;
+		if (mode0_len)
+			if (strncmp(muxname, m0_entry, mode0_len) ||
+			    (strlen(m0_entry) != mode0_len))
+				continue;
 
 		/* Then check for muxmode only */
 		for (i = 0; i < OMAP_MUX_NR_MODES; i++) {
@@ -392,7 +395,7 @@ static bool omap_hwmod_mux_scan_wakeups(struct omap_hwmod_mux_info *hmux,
 
 		handled_irqs |= 1 << irq;
 
-		generic_handle_irq(mpu_irqs[irq].irq);
+		ipipe_handle_demuxed_irq(mpu_irqs[irq].irq);
 	}
 
 	return false;
@@ -409,7 +412,7 @@ static int _omap_hwmod_mux_handle_irq(struct omap_hwmod *oh, void *data)
 	if (!oh->mux || !oh->mux->enabled)
 		return 0;
 	if (omap_hwmod_mux_scan_wakeups(oh->mux, oh->mpu_irqs))
-		generic_handle_irq(oh->mpu_irqs[0].irq);
+		ipipe_handle_demuxed_irq(oh->mpu_irqs[0].irq);
 	return 0;
 }
 

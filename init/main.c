@@ -496,7 +496,7 @@ asmlinkage void __init start_kernel(void)
 
 	cgroup_init_early();
 
-	local_irq_disable();
+	hard_local_irq_disable();
 	early_boot_irqs_disabled = true;
 
 /*
@@ -534,6 +534,7 @@ asmlinkage void __init start_kernel(void)
 	pidhash_init();
 	vfs_caches_init_early();
 	sort_main_extable();
+	__ipipe_init_early();
 	trap_init();
 	mm_init();
 
@@ -564,6 +565,11 @@ asmlinkage void __init start_kernel(void)
 	softirq_init();
 	timekeeping_init();
 	time_init();
+	/*
+	 * We need to wait for the interrupt and time subsystems to be
+	 * initialized before enabling the pipeline.
+	 */
+	__ipipe_init();
 	sched_clock_postinit();
 	perf_event_init();
 	profile_init();
@@ -617,6 +623,10 @@ asmlinkage void __init start_kernel(void)
 #ifdef CONFIG_X86
 	if (efi_enabled(EFI_RUNTIME_SERVICES))
 		efi_enter_virtual_mode();
+#endif
+#ifdef CONFIG_X86_ESPFIX64
+	/* Should be run before the first non-init thread is created */
+	init_espfix_bsp();
 #endif
 	thread_info_cache_init();
 	cred_init();
@@ -785,6 +795,7 @@ static void __init do_basic_setup(void)
 	shmem_init();
 	driver_init();
 	init_irq_proc();
+  	__ipipe_init_proc();
 	do_ctors();
 	usermodehelper_enable();
 	do_initcalls();

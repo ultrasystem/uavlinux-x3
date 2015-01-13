@@ -40,6 +40,7 @@
  * This code is not portable to processors with late data abort handling.
  */
 #define CODING_BITS(i)	(i & 0x0e000000)
+#define COND_BITS(i)	(i & 0xf0000000)
 
 #define LDST_I_BIT(i)	(i & (1 << 26))		/* Immediate constant	*/
 #define LDST_P_BIT(i)	(i & (1 << 24))		/* Preindex		*/
@@ -471,7 +472,7 @@ do_alignment_ldrstr(unsigned long addr, unsigned long instr, struct pt_regs *reg
  *
  * B = rn pointer before instruction, A = rn pointer after instruction
  *              ------ increasing address ----->
- *	        |    | r0 | r1 | ... | rx |    |
+ *		|    | r0 | r1 | ... | rx |    |
  * PU = 01             B                    A
  * PU = 11        B                    A
  * PU = 00        A                    B
@@ -756,7 +757,10 @@ do_alignment(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	int thumb2_32b = 0;
 
 	if (interrupts_enabled(regs))
-		local_irq_enable();
+		hard_local_irq_enable();
+
+	if (__ipipe_report_trap(IPIPE_TRAP_ALIGNMENT,regs))
+		return 0;
 
 	instrptr = instruction_pointer(regs);
 
@@ -817,6 +821,8 @@ do_alignment(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 		break;
 
 	case 0x04000000:	/* ldr or str immediate */
+		if (COND_BITS(instr) == 0xf0000000) /* NEON VLDn, VSTn */
+			goto bad;
 		offset.un = OFFSET_BITS(instr);
 		handler = do_alignment_ldrstr;
 		break;
@@ -914,7 +920,7 @@ do_alignment(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 			task_pid_nr(current), instrptr,
 			isize << 1,
 			isize == 2 ? tinstr : instr,
-		        addr, fsr);
+			addr, fsr);
 
 	if (ai_usermode & UM_FIXUP)
 		goto fixup;
@@ -941,7 +947,7 @@ do_alignment(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 		 * entry-common.S) and disable the alignment trap only if
 		 * there is no work pending for this thread.
 		 */
-		raw_local_irq_disable();
+		hard_local_irq_disable();
 		if (!(current_thread_info()->flags & _TIF_WORK_MASK))
 			set_cr(cr_no_alignment);
 	}

@@ -33,6 +33,12 @@
 #define CLK_MOUT_MPLL_USER_C	18 /* Exynos4x12 only */
 #define CLK_MOUT_CORE		19
 #define CLK_MOUT_APLL		20
+#define CLK_SCLK_HDMIPHY        22
+#define CLK_OUT_DMC             23
+#define CLK_OUT_TOP             24
+#define CLK_OUT_LEFTBUS         25
+#define CLK_OUT_RIGHTBUS        26
+#define CLK_OUT_CPU             27
 
 /* gate for special clocks (sclk) */
 #define CLK_SCLK_FIMC0		128
@@ -229,6 +235,9 @@
 #define CLK_MOUT_G3D1		393
 #define CLK_MOUT_G3D		394
 #define CLK_ACLK400_MCUISP	395 /* Exynos4x12 only */
+
+/* gate clocks - security sub system */
+#define CLK_SSS                 416
 
 /* div clocks */
 #define CLK_DIV_ISP0		450 /* Exynos4x12 only */

@@ -822,7 +822,7 @@ unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
 
 	bit = find_last_bit(&mask, BITS_PER_LONG);
 
-	mask = (1 << bit) - 1;
+	mask = (1UL << bit) - 1;
 
 	expires_limit = expires_limit & ~(mask);
 
@@ -1362,6 +1362,25 @@ void update_process_times(int user_tick)
 	scheduler_tick();
 	run_posix_cpu_timers(p);
 }
+
+#ifdef CONFIG_IPIPE
+
+void update_root_process_times(struct pt_regs *regs)
+{
+	int cpu, user_tick = user_mode(regs);
+
+	if (__ipipe_root_tick_p(regs)) {
+		update_process_times(user_tick);
+		return;
+	}
+
+	run_local_timers();
+	cpu = smp_processor_id();
+	rcu_check_callbacks(cpu, user_tick);
+	run_posix_cpu_timers(current);
+}
+
+#endif
 
 /*
  * This function runs timers and the timer-tq in bottom half context.

@@ -198,6 +198,10 @@ struct clocksource {
 	cycle_t wd_last;
 #endif
 	struct module *owner;
+#ifdef CONFIG_IPIPE_WANT_CLOCKSOURCE
+	cycle_t (*ipipe_read)(struct clocksource *cs);
+#endif /* CONFIG_IPIPE_WANT_CLOCKSOURCE */
+
 } ____cacheline_aligned;
 
 /*
@@ -289,7 +293,7 @@ extern struct clocksource* clocksource_get_next(void);
 extern void clocksource_change_rating(struct clocksource *cs, int rating);
 extern void clocksource_suspend(void);
 extern void clocksource_resume(void);
-extern struct clocksource * __init __weak clocksource_default_clock(void);
+extern struct clocksource * __init clocksource_default_clock(void);
 extern void clocksource_mark_unstable(struct clocksource *cs);
 
 extern u64

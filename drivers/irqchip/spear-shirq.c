@@ -27,7 +27,7 @@
 
 #include "irqchip.h"
 
-static DEFINE_SPINLOCK(lock);
+static IPIPE_DEFINE_SPINLOCK(lock);
 
 /* spear300 shared irq registers offsets and masks */
 #define SPEAR300_INT_ENB_MASK_REG	0x54
@@ -125,7 +125,7 @@ static struct spear_shirq spear320_shirq_ras2 = {
 };
 
 static struct spear_shirq spear320_shirq_ras3 = {
-	.irq_nr = 3,
+	.irq_nr = 7,
 	.irq_bit_off = 0,
 	.invalid_irq = 1,
 	.regs = {
@@ -191,6 +191,9 @@ static struct irq_chip shirq_chip = {
 	.name		= "spear-shirq",
 	.irq_ack	= shirq_irq_mask,
 	.irq_mask	= shirq_irq_mask,
+#ifdef CONFIG_IPIPE
+	.irq_mask_ack   = shirq_irq_mask,
+#endif /* CONFIG_IPIPE */
 	.irq_unmask	= shirq_irq_unmask,
 };
 
@@ -213,7 +216,7 @@ static void shirq_handler(unsigned irq, struct irq_desc *desc)
 			if (!(j & val))
 				continue;
 
-			generic_handle_irq(shirq->irq_base + i);
+			ipipe_handle_demuxed_irq(shirq->irq_base + i);
 
 			/* clear interrupt */
 			if (shirq->regs.clear_reg == -1)

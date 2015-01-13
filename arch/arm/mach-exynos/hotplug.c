@@ -1,5 +1,4 @@
-/* linux arch/arm/mach-exynos4/hotplug.c
- *
+/*
  *  Cloned from linux/arch/arm/mach-realview/hotplug.c
  *
  *  Copyright (C) 2002 ARM Ltd.
@@ -19,103 +18,53 @@
 #include <asm/cp15.h>
 #include <asm/smp_plat.h>
 
-#include <plat/cpu.h>
-
 #include "common.h"
 #include "regs-pmu.h"
 
-static inline void cpu_enter_lowpower_a9(void)
-{
-	unsigned int v;
-
-	asm volatile(
-	"	mcr	p15, 0, %1, c7, c5, 0\n"
-	"	mcr	p15, 0, %1, c7, c10, 4\n"
-	/*
-	 * Turn off coherency
-	 */
-	"	mrc	p15, 0, %0, c1, c0, 1\n"
-	"	bic	%0, %0, %3\n"
-	"	mcr	p15, 0, %0, c1, c0, 1\n"
-	"	mrc	p15, 0, %0, c1, c0, 0\n"
-	"	bic	%0, %0, %2\n"
-	"	mcr	p15, 0, %0, c1, c0, 0\n"
-	  : "=&r" (v)
-	  : "r" (0), "Ir" (CR_C), "Ir" (0x40)
-	  : "cc");
-}
-
-static inline void cpu_enter_lowpower_a15(void)
-{
-	unsigned int v;
-
-	asm volatile(
-	"	mrc	p15, 0, %0, c1, c0, 0\n"
-	"	bic	%0, %0, %1\n"
-	"	mcr	p15, 0, %0, c1, c0, 0\n"
-	  : "=&r" (v)
-	  : "Ir" (CR_C)
-	  : "cc");
-
-	flush_cache_louis();
-
-	asm volatile(
-	/*
-	* Turn off coherency
-	*/
-	"	mrc	p15, 0, %0, c1, c0, 1\n"
-	"	bic	%0, %0, %1\n"
-	"	mcr	p15, 0, %0, c1, c0, 1\n"
-	: "=&r" (v)
-	: "Ir" (0x40)
-	: "cc");
-
-	isb();
-	dsb();
-}
-
 static inline void cpu_leave_lowpower(void)
 {
-	unsigned int v;
+    unsigned int v;
 
-	asm volatile(
-	"mrc	p15, 0, %0, c1, c0, 0\n"
-	"	orr	%0, %0, %1\n"
-	"	mcr	p15, 0, %0, c1, c0, 0\n"
-	"	mrc	p15, 0, %0, c1, c0, 1\n"
-	"	orr	%0, %0, %2\n"
-	"	mcr	p15, 0, %0, c1, c0, 1\n"
-	  : "=&r" (v)
-	  : "Ir" (CR_C), "Ir" (0x40)
-	  : "cc");
+    asm volatile(
+    "mrc	p15, 0, %0, c1, c0, 0\n"
+    "	orr	%0, %0, %1\n"
+    "	mcr	p15, 0, %0, c1, c0, 0\n"
+    "	mrc	p15, 0, %0, c1, c0, 1\n"
+    "	orr	%0, %0, %2\n"
+    "	mcr	p15, 0, %0, c1, c0, 1\n"
+      : "=&r" (v)
+      : "Ir" (CR_C), "Ir" (0x40)
+      : "cc");
 }
 
 static inline void platform_do_lowpower(unsigned int cpu, int *spurious)
 {
-	for (;;) {
+    u32 mpidr = cpu_logical_map(cpu);
+    u32 core_id = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 
-		/* make cpu1 to be turned off at next WFI command */
-		if (cpu == 1)
-			writel_relaxed(0, S5P_ARM_CORE1_CONFIGURATION);
+    for (;;) {
 
-		wfi();
+        /* Turn the CPU off on next WFI instruction. */
+        exynos_cpu_power_down(core_id);
 
-		if (pen_release == cpu_logical_map(cpu)) {
-			/*
-			 * OK, proper wakeup, we're done
-			 */
-			break;
-		}
+        wfi();
 
-		/*
-		 * Getting here, means that we have come out of WFI without
-		 * having been woken up - this shouldn't happen
-		 *
-		 * Just note it happening - when we're woken, we can report
-		 * its occurrence.
-		 */
-		(*spurious)++;
-	}
+        if (pen_release == core_id) {
+            /*
+             * OK, proper wakeup, we're done
+             */
+            break;
+        }
+
+        /*
+         * Getting here, means that we have come out of WFI without
+         * having been woken up - this shouldn't happen
+         *
+         * Just note it happening - when we're woken, we can report
+         * its occurrence.
+         */
+        (*spurious)++;
+    }
 }
 
 /*
@@ -125,29 +74,18 @@ static inline void platform_do_lowpower(unsigned int cpu, int *spurious)
  */
 void __ref exynos_cpu_die(unsigned int cpu)
 {
-	int spurious = 0;
-	int primary_part = 0;
+    int spurious = 0;
 
-	/*
-	 * we're ready for shutdown now, so do it.
-	 * Exynos4 is A9 based while Exynos5 is A15; check the CPU part
-	 * number by reading the Main ID register and then perform the
-	 * appropriate sequence for entering low power.
-	 */
-	asm("mrc p15, 0, %0, c0, c0, 0" : "=r"(primary_part) : : "cc");
-	if ((primary_part & 0xfff0) == 0xc0f0)
-		cpu_enter_lowpower_a15();
-	else
-		cpu_enter_lowpower_a9();
+    v7_exit_coherency_flush(louis);
 
-	platform_do_lowpower(cpu, &spurious);
+    platform_do_lowpower(cpu, &spurious);
 
-	/*
-	 * bring this CPU back into the world of cache
-	 * coherency, and then restore interrupts
-	 */
-	cpu_leave_lowpower();
+    /*
+     * bring this CPU back into the world of cache
+     * coherency, and then restore interrupts
+     */
+    cpu_leave_lowpower();
 
-	if (spurious)
-		pr_warn("CPU%u: %u spurious wakeup calls\n", cpu, spurious);
+    if (spurious)
+        pr_warn("CPU%u: %u spurious wakeup calls\n", cpu, spurious);
 }

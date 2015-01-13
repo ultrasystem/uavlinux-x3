@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/err.h>
+#include <linux/ipipe.h>
 
 #include "pinctrl-samsung.h"
 #include "pinctrl-exynos.h"
@@ -441,7 +442,7 @@ static void exynos_irq_eint0_15(unsigned int irq, struct irq_desc *desc)
 		chip->irq_ack(&desc->irq_data);
 
 	eint_irq = irq_linear_revmap(bank->irq_domain, eintd->irq);
-	generic_handle_irq(eint_irq);
+	ipipe_handle_demuxed_irq(eint_irq);
 	chip->irq_unmask(&desc->irq_data);
 	chained_irq_exit(chip, desc);
 }
@@ -453,7 +454,7 @@ static inline void exynos_irq_demux_eint(unsigned long pend,
 
 	while (pend) {
 		irq = fls(pend) - 1;
-		generic_handle_irq(irq_find_mapping(domain, irq));
+		ipipe_handle_demuxed_irq(irq_find_mapping(domain, irq));
 		pend &= ~(1 << irq);
 	}
 }

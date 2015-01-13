@@ -6,6 +6,7 @@ config ARM
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
 	select ARCH_HAVE_CUSTOM_GPIO_H
 	select ARCH_MIGHT_HAVE_PC_PARPORT
+	select ARCH_SUPPORTS_ATOMIC_RMW
 	select ARCH_USE_BUILTIN_BSWAP
 	select ARCH_USE_CMPXCHG_LOCKREF
 	select ARCH_WANT_IPC_PARSE_VERSION
@@ -29,7 +30,7 @@ config ARM
 	select HAVE_ARCH_SECCOMP_FILTER if (AEABI && !OABI_COMPAT)
 	select HAVE_ARCH_TRACEHOOK
 	select HAVE_BPF_JIT
-	select HAVE_CONTEXT_TRACKING
+	select HAVE_CONTEXT_TRACKING if !IPIPE
 	select HAVE_C_RECORDMCOUNT
 	select HAVE_CC_STACKPROTECTOR
 	select HAVE_DEBUG_KMEMLEAK
@@ -80,6 +81,11 @@ config ARM
 	  manufactured, but legacy ARM-based PC hardware remains popular in
 	  Europe.  There is an ARM Linux project with a web page at
 	  <http://www.arm.linux.org.uk/>.
+
+if IPIPE
+config IPIPE_WANT_ACTIVE_MM
+       def_bool y
+endif
 
 config ARM_HAS_SG_CHAIN
 	bool
@@ -378,6 +384,7 @@ config ARCH_AT91
 	select NEED_MACH_IO_H if PCCARD
 	select PINCTRL
 	select PINCTRL_AT91 if USE_OF
+	select ATMEL_TCLIB if IPIPE
 	help
 	  This enables support for systems based on Atmel
 	  AT91RM9200 and AT91SAM9* processors.
@@ -516,6 +523,7 @@ config ARCH_IXP4XX
 	select ARCH_HAS_DMA_SET_COHERENT_MASK
 	select ARCH_SUPPORTS_BIG_ENDIAN
 	select ARCH_REQUIRE_GPIOLIB
+	select IPIPE_ARM_KUSER_TSC if IPIPE
 	select CLKSRC_MMIO
 	select CPU_XSCALE
 	select DMABOUNCE if PCI
@@ -732,6 +740,7 @@ config ARCH_SA1100
 
 config ARCH_S3C24XX
 	bool "Samsung S3C24XX SoCs"
+	select IPIPE_ARM_KUSER_TSC if IPIPE
 	select ARCH_HAS_CPUFREQ
 	select ARCH_REQUIRE_GPIOLIB
 	select CLKDEV_LOOKUP
@@ -901,7 +910,7 @@ config ARCH_MULTI_V5
 	bool "ARMv5 based platforms (ARM926T, XSCALE, PJ1, ...)"
 	depends on !ARCH_MULTI_V6_V7
 	select ARCH_MULTI_V4_V5
-	select CPU_ARM926T if (!CPU_ARM946E || CPU_ARM1020 || \
+	select CPU_ARM926T if !(CPU_ARM946E || CPU_ARM1020 || \
 		CPU_ARM1020E || CPU_ARM1022 || CPU_ARM1026 || \
 		CPU_XSCALE || CPU_XSC3 || CPU_MOHAWK || CPU_FEROCEON)
 
@@ -1088,6 +1097,14 @@ config ARM_TIMER_SP804
 	bool
 	select CLKSRC_MMIO
 	select CLKSRC_OF if OF
+
+if IPIPE
+config IPIPE_ARM_KUSER_TSC
+       bool
+       select GENERIC_TIME_VSYSCALL
+       select IPIPE_HAVE_HOSTRT if IPIPE
+       default y if ARCH_AT91 || ARM_TIMER_SP804 || ARCH_MXC || ARCH_OMAP || PLAT_PXA || PLAT_S3C24XX || ARCH_SA1100
+endif
 
 source "arch/arm/firmware/Kconfig"
 
@@ -1643,6 +1660,8 @@ config ARCH_NR_GPIO
 	  Maximum number of GPIOs in the system.
 
 	  If unsure, leave the default value.
+
+source kernel/ipipe/Kconfig
 
 source kernel/Kconfig.preempt
 

@@ -8,12 +8,15 @@
 
 #include <linux/linkage.h>
 #include <linux/list.h>
+#include <linux/ipipe_base.h>
 
 /*
  * We use the MSB mostly because its available; see <linux/preempt_mask.h> for
  * the other bits -- can't include that header due to inclusion hell.
  */
 #define PREEMPT_NEED_RESCHED	0x80000000
+
+#define tif_need_resched() test_thread_flag(TIF_NEED_RESCHED)
 
 #include <asm/preempt.h>
 
@@ -124,7 +127,27 @@ do { \
 
 #endif /* CONFIG_PREEMPT_COUNT */
 
-#ifdef MODULE
+#ifdef CONFIG_IPIPE
+#define hard_preempt_disable()				\
+	({						\
+		unsigned long __flags__;		\
+		__flags__ = hard_local_irq_save();	\
+		if (__ipipe_root_p)			\
+			preempt_disable();		\
+		__flags__;				\
+	})
+
+#define hard_preempt_enable(__flags__)			\
+	do {						\
+		if (__ipipe_root_p) {			\
+			preempt_enable_no_resched();	\
+			hard_local_irq_restore(__flags__);	\
+			preempt_check_resched();	\
+		} else					\
+			hard_local_irq_restore(__flags__);	\
+	} while (0)
+
+#elif defined(MODULE)
 /*
  * Modules have no business playing preemption tricks.
  */
@@ -132,7 +155,7 @@ do { \
 #undef preempt_enable_no_resched
 #undef preempt_enable_no_resched_notrace
 #undef preempt_check_resched
-#endif
+#endif	/* !IPIPE && MODULE */
 
 #define preempt_set_need_resched() \
 do { \

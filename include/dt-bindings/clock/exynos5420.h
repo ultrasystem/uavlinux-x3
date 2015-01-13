@@ -58,6 +58,7 @@
 #define CLK_SCLK_GSCL_WA	156
 #define CLK_SCLK_GSCL_WB	157
 #define CLK_SCLK_HDMIPHY	158
+#define CLK_MAU_EPLL            159
 
 /* gate clocks */
 #define CLK_ACLK66_PERIC	256
@@ -178,6 +179,8 @@
 
 /* mux clocks */
 #define CLK_MOUT_HDMI		640
+#define CLK_MOUT_USER_ACLK333   644
+#define CLK_MOUT_SW_ACLK333     645
 
 /* divider clocks */
 #define CLK_DOUT_PIXEL		768

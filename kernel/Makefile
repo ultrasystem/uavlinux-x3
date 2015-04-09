@@ -220,4 +220,5 @@ x509.genkey:
 	@echo >>x509.genkey "authorityKeyIdentifier=keyid"
 endif
 
+obj-$(CONFIG_AUTOPILOT) += autopilot/
 obj-$(CONFIG_XENOMAI) += xenomai/

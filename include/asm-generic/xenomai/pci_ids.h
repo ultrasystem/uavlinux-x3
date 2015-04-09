@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/include/asm-generic/xenomai/pci_ids.h
+/arm/autopilot/xenomai-3/kernel/cobalt/include/asm-generic/xenomai/pci_ids.h

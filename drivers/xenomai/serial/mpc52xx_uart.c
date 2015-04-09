@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/serial/mpc52xx_uart.c
+/arm/autopilot/xenomai-3/kernel/drivers/serial/mpc52xx_uart.c

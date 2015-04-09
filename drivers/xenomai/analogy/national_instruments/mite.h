@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/mite.h
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/mite.h

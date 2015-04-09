@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/pcnet32.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/pcnet32.c

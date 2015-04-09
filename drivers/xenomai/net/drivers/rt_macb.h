@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/rt_macb.h
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/rt_macb.h

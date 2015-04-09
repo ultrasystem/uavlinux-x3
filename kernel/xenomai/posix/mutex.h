@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/posix/mutex.h
+/arm/autopilot/xenomai-3/kernel/cobalt/posix/mutex.h

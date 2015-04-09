@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/ipv4/tcp/tcp.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/ipv4/tcp/tcp.c

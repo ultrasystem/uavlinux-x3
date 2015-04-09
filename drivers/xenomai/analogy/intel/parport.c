@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/intel/parport.c
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/intel/parport.c

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/eth1394.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/eth1394.c

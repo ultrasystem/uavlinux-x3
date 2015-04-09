@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/autotune/Makefile
+/arm/autopilot/xenomai-3/kernel/drivers/autotune/Makefile

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/can/mscan/rtcan_mscan_regs.h
+/arm/autopilot/xenomai-3/kernel/drivers/can/mscan/rtcan_mscan_regs.h

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/tulip/tulip_core.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/tulip/tulip_core.c

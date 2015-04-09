@@ -420,6 +420,12 @@
 #define __ARM_NR_set_tls		(__ARM_NR_BASE+5)
 
 /*
+ * For Autopilot API
+ */
+#define __UAV_NR_BASE                   (__NR_SYSCALL_BASE+0x0E0000)
+#include <autopilot/unistd.h>
+
+/*
  * This SWI is IPIPE private, for dispatching syscalls to the head
  * domain.
  */

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/can/sja1000/rtcan_ems_pci.c
+/arm/autopilot/xenomai-3/kernel/drivers/can/sja1000/rtcan_ems_pci.c

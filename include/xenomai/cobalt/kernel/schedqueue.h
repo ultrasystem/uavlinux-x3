@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/kernel/schedqueue.h
+/arm/autopilot/xenomai-3/include/cobalt/kernel/schedqueue.h

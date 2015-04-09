@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/uapi/thread.h
+/arm/autopilot/xenomai-3/include/cobalt/uapi/thread.h

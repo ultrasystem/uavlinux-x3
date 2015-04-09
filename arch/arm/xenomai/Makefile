@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/arch/arm/Makefile
+/arm/autopilot/xenomai-3/kernel/cobalt/arch/arm/Makefile

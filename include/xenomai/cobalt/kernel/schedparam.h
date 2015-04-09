@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/kernel/schedparam.h
+/arm/autopilot/xenomai-3/include/cobalt/kernel/schedparam.h

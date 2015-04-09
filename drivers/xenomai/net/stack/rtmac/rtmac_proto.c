@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/rtmac/rtmac_proto.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/rtmac/rtmac_proto.c

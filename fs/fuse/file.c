@@ -2399,7 +2399,7 @@ long fuse_do_ioctl(struct file *file, unsigned int cmd, unsigned long arg,
 
 		iov->iov_base = (void __user *)arg;
 		iov->iov_len = _IOC_SIZE(cmd);
-
+	
 		if (_IOC_DIR(cmd) & _IOC_WRITE) {
 			in_iov = iov;
 			in_iovs = 1;

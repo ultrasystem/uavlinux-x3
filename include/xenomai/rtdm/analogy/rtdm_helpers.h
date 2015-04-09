@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/kernel/rtdm/analogy/rtdm_helpers.h
+/arm/autopilot/xenomai-3/include/cobalt/kernel/rtdm/analogy/rtdm_helpers.h

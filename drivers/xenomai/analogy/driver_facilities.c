@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/driver_facilities.c
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/driver_facilities.c

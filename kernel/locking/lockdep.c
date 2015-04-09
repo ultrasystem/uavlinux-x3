@@ -2615,10 +2615,12 @@ EXPORT_SYMBOL(trace_hardirqs_on);
  */
 void trace_hardirqs_off_caller(unsigned long ip)
 {
-	struct task_struct *curr = current;
+	struct task_struct *curr;
 
 	if(!ipipe_root_p)
 		return ;
+
+	curr = current;
 
 	time_hardirqs_off(CALLER_ADDR0, ip);
 

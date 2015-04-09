@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/serial/16550A_pnp.h
+/arm/autopilot/xenomai-3/kernel/drivers/serial/16550A_pnp.h

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/pipe.c
+/arm/autopilot/xenomai-3/kernel/cobalt/pipe.c

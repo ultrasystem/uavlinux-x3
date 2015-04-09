@@ -19,4 +19,5 @@ fi
 export ARCH=arm
 
 cd $KERNELDIR/
+cp -ap ./include/autopilot ../linux/include/
 make INSTALL_HDR_PATH=../linux headers_install -j4 || exit 1

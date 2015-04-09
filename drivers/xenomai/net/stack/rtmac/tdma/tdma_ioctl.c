@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/rtmac/tdma/tdma_ioctl.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/rtmac/tdma/tdma_ioctl.c

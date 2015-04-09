@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/posix/extension.h
+/arm/autopilot/xenomai-3/kernel/cobalt/posix/extension.h

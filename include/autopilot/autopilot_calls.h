@@ -4,7 +4,7 @@
 #ifdef __NR_syscalls
 #define AUTOPILOT_CALL_BASE     __NR_syscalls
 #else
-#define AUTOPILOT_CALL_BASE     (__NR_kcmp + 1)
+#define AUTOPILOT_CALL_BASE     (__NR_sched_getattr + 1)
 #endif
 
 #define __NR_i2c_transfer       AUTOPILOT_CALL_BASE + 0

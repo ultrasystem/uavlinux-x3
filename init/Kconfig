@@ -1652,6 +1652,8 @@ source "arch/Kconfig"
 
 endmenu		# General setup
 
+source "kernel/autopilot/Kconfig"
+
 config HAVE_GENERIC_DMA_COHERENT
 	bool
 	default n

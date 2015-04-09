@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/rtdm_interface.c
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/rtdm_interface.c

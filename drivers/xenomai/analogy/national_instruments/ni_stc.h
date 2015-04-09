@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/ni_stc.h
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/ni_stc.h

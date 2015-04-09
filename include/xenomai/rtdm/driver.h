@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/kernel/rtdm/driver.h
+/arm/autopilot/xenomai-3/include/cobalt/kernel/rtdm/driver.h

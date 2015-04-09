@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/include/asm-generic/xenomai/mayday.h
+/arm/autopilot/xenomai-3/kernel/cobalt/include/asm-generic/xenomai/mayday.h

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/mpc52xx_fec/mpc52xx_fec.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/mpc52xx_fec/mpc52xx_fec.c

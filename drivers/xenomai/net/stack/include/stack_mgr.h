@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/include/stack_mgr.h
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/include/stack_mgr.h

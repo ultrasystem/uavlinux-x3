@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/rtcfg/rtcfg_conn_event.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/rtcfg/rtcfg_conn_event.c

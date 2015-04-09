@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/drivers/rt_smc91111.h
+/arm/autopilot/xenomai-3/kernel/drivers/net/drivers/rt_smc91111.h

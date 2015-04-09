@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/intel/8255.h
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/intel/8255.h

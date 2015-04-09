@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/ni_660x.c
+/arm/autopilot/xenomai-3/kernel/drivers/analogy/national_instruments/ni_660x.c

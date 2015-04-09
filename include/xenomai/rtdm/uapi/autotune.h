@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/rtdm/uapi/autotune.h
+/arm/autopilot/xenomai-3/include/rtdm/uapi/autotune.h

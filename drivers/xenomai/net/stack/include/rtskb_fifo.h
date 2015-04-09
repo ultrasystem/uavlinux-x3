@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/include/rtskb_fifo.h
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/include/rtskb_fifo.h

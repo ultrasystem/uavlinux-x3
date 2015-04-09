@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/net/stack/rtcfg/rtcfg_frame.c
+/arm/autopilot/xenomai-3/kernel/drivers/net/stack/rtcfg/rtcfg_frame.c

@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/include/cobalt/uapi/sched.h
+/arm/autopilot/xenomai-3/include/cobalt/uapi/sched.h

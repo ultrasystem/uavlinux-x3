@@ -391,6 +391,9 @@
 		CALL(sys_finit_module)
 /* 380 */	CALL(sys_sched_setattr)
 		CALL(sys_sched_getattr)
+#ifdef CONFIG_AUTOPILOT
+#include <autopilot/entry.h>
+#endif
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted

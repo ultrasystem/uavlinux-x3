@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/sched-quota.c
+/arm/autopilot/xenomai-3/kernel/cobalt/sched-quota.c

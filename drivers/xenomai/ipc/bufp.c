@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/drivers/ipc/bufp.c
+/arm/autopilot/xenomai-3/kernel/drivers/ipc/bufp.c

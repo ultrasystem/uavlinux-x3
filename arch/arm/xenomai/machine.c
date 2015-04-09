@@ -1,1 +1,1 @@
-/arm/x4-system/autopilot/xenomai-3/kernel/cobalt/arch/arm/machine.c
+/arm/autopilot/xenomai-3/kernel/cobalt/arch/arm/machine.c
